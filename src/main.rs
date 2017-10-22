@@ -3,6 +3,7 @@
 extern crate nom;
 
 use std::str::FromStr;
+use std::env;
 
 #[derive(Debug, PartialEq)]
 enum Sexpr {
@@ -14,7 +15,7 @@ enum Sexpr {
 
 impl Sexpr {
     fn interpret(&self) -> i64 {
-        let res = match self {
+        match self {
             &Sexpr::Plus(ref v) => v.iter().fold(0, |acc, sexpr| acc + sexpr.interpret()),
             &Sexpr::Minus(ref v) => match v.as_slice() {
                 &[] => 0,
@@ -23,9 +24,7 @@ impl Sexpr {
             },
             &Sexpr::Mul(ref v) => v.iter().fold(1, |acc, sexpr| acc * sexpr.interpret()),
             &Sexpr::Int(n) => n
-        };
-        println!("calc {:?} = {}", self, res);
-        res
+        }
     }
 }
 
@@ -88,10 +87,15 @@ named!(parse_sexpr<&str,Result<Sexpr, &str> >,
 );
 
 fn main() {
-    let s ="(+ (* 4 4) (* 2 (- 7 5)) 1)";
-    match parse_sexpr(s) {
-        nom::IResult::Done(_, Ok(sexpr)) => println!("{:?}\n{}", sexpr, sexpr.interpret()),
-        e => println!("{:?}", e)
+    let  args : Vec<String> = env::args().collect();
+    if  args.len() > 1 {
+        let s = args[1..].join(" ");
+        match parse_sexpr(&s) {
+            nom::IResult::Done(_, Ok(sexpr)) => println!("{:?}\n{}", sexpr, sexpr.interpret()),
+            e => println!("error {:?} on input {:?}", e, s)
+        }
+    } else {
+        println!("sepxr expected");
     }
 }
 
