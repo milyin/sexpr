@@ -5,42 +5,51 @@ extern crate nom;
 use std::str::FromStr;
 use std::env;
 
+#[derive(Debug, Clone, Copy)]
+enum OpType{ Plus, Minus, Mul }
+
+impl OpType {
+    fn cost(&self) -> usize {
+        match self {
+            &OpType::Plus => 2,
+            &OpType::Minus => 3,
+            &OpType::Mul => 10
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Sexpr {
-    Plus (Vec<Sexpr>),
-    Minus (Vec<Sexpr>),
-    Mul (Vec<Sexpr>),
+    Op { op_type: OpType, sexprs: Vec<Sexpr>},
     Int(i64)
 }
 
 impl Sexpr {
     fn interpret(&self) -> i64 {
         match self {
-            &Sexpr::Plus(ref v) => v.iter().fold(0, |acc, sexpr| acc + sexpr.interpret()),
-            &Sexpr::Minus(ref v) => match v.as_slice() {
-                &[] => 0,
-                &[ref sexpr] => -sexpr.interpret(),
-                &[ref sexpr, ref rest..] => rest.iter().fold(sexpr.interpret(), |acc, sexpr| acc - sexpr.interpret())
+            &Sexpr::Op { op_type: op, sexprs: ref v }  => match op {
+                OpType::Plus => v.iter().fold(0, |acc, sexpr| acc + sexpr.interpret()),
+                OpType::Minus => match v.as_slice() {
+                        &[] => 0,
+                        &[ref sexpr] => -sexpr.interpret(),
+                        &[ref sexpr, ref rest..] => rest.iter().fold(sexpr.interpret(), |acc, sexpr| acc - sexpr.interpret())
+                    },
+                OpType::Mul => v.iter().fold(1, |acc, sexpr| acc * sexpr.interpret()),
             },
-            &Sexpr::Mul(ref v) => v.iter().fold(1, |acc, sexpr| acc * sexpr.interpret()),
             &Sexpr::Int(n) => n
         }
     }
 
     fn exprs(&self) -> &[Sexpr] {
         match self {
-            &Sexpr::Plus(ref v) => v.as_slice(),
-            &Sexpr::Minus(ref v) => v.as_slice(),
-            &Sexpr::Mul(ref v) => v.as_slice(),
+            &Sexpr::Op  { sexprs : ref v, .. } => v.as_slice(),
             &Sexpr::Int(_) => &[]
         }
     }
 
     fn op_cost(&self) -> usize {
         match self {
-            &Sexpr::Plus(_) => 2,
-            &Sexpr::Minus(_) => 3,
-            &Sexpr::Mul(_) => 10,
+            &Sexpr::Op { op_type: op, .. } => op.cost(),
             &Sexpr::Int(_) => 0
         }
     }
@@ -49,9 +58,20 @@ impl Sexpr {
         return self.op_cost() + self.exprs().iter()
             .fold(0, |acc, sexpr| std::cmp::max(acc,sexpr.network_cost()))
     }
+
+    fn is_leaf_op(&self) -> bool {
+        self.exprs().iter().fold(true, |acc, sexpr| acc && sexpr.exprs().is_empty())
+    }
+
+    fn cpu_cost(&self) -> usize {
+        return self.op_cost() + self.exprs().iter()
+            .fold(0, |acc, sexpr| acc+sexpr.cpu_cost())
+    }
 }
 
-type MakeSexpr = &'static Fn(Vec<Sexpr>) -> Sexpr;
+//fn interpret_cpu(sexpr: &Sexpr, ncpus: usize) -> (i64, usize) {
+//    let cpus = Vec::<Sexpr>::new();
+//}
 
 named!(open_bracket<&str,&str>,
     ws!(tag_s!("("))
@@ -61,20 +81,12 @@ named!(close_bracket<&str,&str>,
     ws!(tag_s!(")"))
 );
 
-named!(plus<&str, MakeSexpr>,
-   map!(ws!(tag!("+")), |_| &Sexpr::Plus)
-);
-
-named!(minus<&str, MakeSexpr>,
-   map!(ws!(tag!("-")), |_| &Sexpr::Minus)
-);
-
-named!(mul<&str, MakeSexpr>,
-   map!(ws!(tag!("*")), |_| &Sexpr::Mul)
-);
-
-named!(operation<&str, MakeSexpr>,
-   alt!(plus | minus | mul)
+named!(operation<&str, OpType>,
+   alt!(
+       map!(ws!(tag!("+")), |_| OpType::Plus) |
+       map!(ws!(tag!("-")), |_| OpType::Minus) |
+       map!(ws!(tag!("*")), |_| OpType::Mul)
+   )
 );
 
 named!(integer<&str,Result<i64, &str> >,
@@ -98,7 +110,7 @@ named!(sexpr_brackets<&str, Result<Sexpr, &str> >,
         op: operation >>
         exprs: fold_many1!(parse_sexpr, Ok(Vec::new()), collect_sexprs) >>
         close_bracket >>
-        (exprs.map(op))
+        (exprs.map(|v| Sexpr::Op { op_type: op, sexprs: v } ))
     )
 );
 
