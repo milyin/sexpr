@@ -5,7 +5,7 @@ extern crate nom;
 use std::str::FromStr;
 use std::env;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum Sexpr {
     Plus (Vec<Sexpr>),
     Minus (Vec<Sexpr>),
@@ -25,6 +25,29 @@ impl Sexpr {
             &Sexpr::Mul(ref v) => v.iter().fold(1, |acc, sexpr| acc * sexpr.interpret()),
             &Sexpr::Int(n) => n
         }
+    }
+
+    fn exprs(&self) -> &[Sexpr] {
+        match self {
+            &Sexpr::Plus(ref v) => v.as_slice(),
+            &Sexpr::Minus(ref v) => v.as_slice(),
+            &Sexpr::Mul(ref v) => v.as_slice(),
+            &Sexpr::Int(_) => &[]
+        }
+    }
+
+    fn op_cost(&self) -> usize {
+        match self {
+            &Sexpr::Plus(_) => 2,
+            &Sexpr::Minus(_) => 3,
+            &Sexpr::Mul(_) => 10,
+            &Sexpr::Int(_) => 0
+        }
+    }
+
+    fn network_cost(&self) -> usize {
+        return self.op_cost() + self.exprs().iter()
+            .fold(0, |acc, sexpr| std::cmp::max(acc,sexpr.network_cost()))
     }
 }
 
@@ -91,7 +114,11 @@ fn main() {
     if  args.len() > 1 {
         let s = args[1..].join(" ");
         match parse_sexpr(&s) {
-            nom::IResult::Done(_, Ok(sexpr)) => println!("{:?}\n{}", sexpr, sexpr.interpret()),
+            nom::IResult::Done(_, Ok(sexpr)) =>
+                println!("{:?}\n{}\n{}",
+                    sexpr,
+                    sexpr.interpret(),
+                    sexpr.network_cost()),
             e => println!("error {:?} on input {:?}", e, s)
         }
     } else {
@@ -103,27 +130,28 @@ fn main() {
 mod tests {
     use super::*;
 
-    fn calc(s: &str) -> i64 {
-        parse_sexpr(s).unwrap().1.unwrap().interpret()
+    fn calc(s: &str) -> (i64, usize) {
+        let sexpr = parse_sexpr(s).unwrap().1.unwrap();
+        (sexpr.interpret(), sexpr.network_cost())
     }
 
     #[test]
-    fn calc1() { assert_eq!(calc("(+ (* 4 4) (* 2 (- 7 5)) 1)"), 21); }
+    fn calc1() { assert_eq!(calc("(+ (* 4 4) (* 2 (- 7 5)) 1)"), (21,15)); }
     #[test]
-    fn calc2() { assert_eq!(calc("10"), 10); }
+    fn calc2() { assert_eq!(calc("10"), (10,0)); }
     #[test]
-    fn calc3() { assert_eq!(calc("(* 10 (- 0 1))"), -10); }
+    fn calc3() { assert_eq!(calc("(* 10 (- 0 1))"), (-10,13)); }
     #[test]
-    fn calc4() { assert_eq!(calc("(- (+ 10 10) -5 0)"), 25); }
+    fn calc4() { assert_eq!(calc("(- (+ 10 10) -5 0)"), (25,5)); }
     #[test]
-    fn calc5() { assert_eq!(calc("(+ (- (* (+ (- (* 1))))))"), 1); }
+    fn calc5() { assert_eq!(calc("(+ (- (* (+ (- (* 1))))))"), (1,30)); }
     #[test]
-    fn calc6() { assert_eq!(calc("(* 2 (+ (- 10 9) (- 3 (* 2 1))) (+ (- 10 9) (- 3 (* 2 1))))"), 8); }
+    fn calc6() { assert_eq!(calc("(* 2 (+ (- 10 9) (- 3 (* 2 1))) (+ (- 10 9) (- 3 (* 2 1))))"), (8,25)); }
     #[test]
-    fn calc7() { assert_eq!(calc("(+ (* 2 1) (+ 8 8) (- (+ 4 3 2 1) (* 3 3) (* 2 2)) (* 5 7))"), 50); }
+    fn calc7() { assert_eq!(calc("(+ (* 2 1) (+ 8 8) (- (+ 4 3 2 1) (* 3 3) (* 2 2)) (* 5 7))"), (50,15)); }
     #[test]
-    fn calc8() { assert_eq!(calc("(- (+ (+ 3 3) (- 3 3) (+ 3 3) (- 3 3)) (* 2 2))"), 8); }
+    fn calc8() { assert_eq!(calc("(- (+ (+ 3 3) (- 3 3) (+ 3 3) (- 3 3)) (* 2 2))"), (8,13)); }
     #[test]
-    fn calc9() { assert_eq!(calc("(+ (- 6 1) (+ 0 1 1) (- 7 2) (* 3 4 5) (- 3 1) (+ 2) (- 0 10))"), 66); }
+    fn calc9() { assert_eq!(calc("(+ (- 6 1) (+ 0 1 1) (- 7 2) (* 3 4 5) (- 3 1) (+ 2) (- 0 10))"), (66,12)); }
 }
 
