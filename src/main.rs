@@ -20,14 +20,14 @@ impl OpType {
 
 #[derive(Debug)]
 enum Sexpr {
-    Op { op_type: OpType, sexprs: Vec<Sexpr>},
+    Op { op_type: OpType, sexprs: Vec<Sexpr>, depth_cost: usize },
     Int(i64)
 }
 
 impl Sexpr {
     fn interpret(&self) -> i64 {
         match self {
-            &Sexpr::Op { op_type: op, sexprs: ref v }  => match op {
+            &Sexpr::Op { op_type: op, sexprs: ref v, .. }  => match op {
                 OpType::Plus => v.iter().fold(0, |acc, sexpr| acc + sexpr.interpret()),
                 OpType::Minus => match v.as_slice() {
                         &[] => 0,
@@ -66,6 +66,15 @@ impl Sexpr {
     fn cpu_cost(&self) -> usize {
         return self.op_cost() + self.exprs().iter()
             .fold(0, |acc, sexpr| acc+sexpr.cpu_cost())
+    }
+
+    fn update_depth_cost(&mut self, cost: usize) {
+        if let &mut Sexpr::Op { op_type: op, sexprs: ref mut e, depth_cost: ref mut dc }  = self {
+            *dc = cost;
+            for sexpr in e {
+                sexpr.update_depth_cost(cost + op.cost() )
+            }
+        }
     }
 }
 
@@ -110,7 +119,7 @@ named!(sexpr_brackets<&str, Result<Sexpr, &str> >,
         op: operation >>
         exprs: fold_many1!(parse_sexpr, Ok(Vec::new()), collect_sexprs) >>
         close_bracket >>
-        (exprs.map(|v| Sexpr::Op { op_type: op, sexprs: v } ))
+        (exprs.map(|v| Sexpr::Op { op_type: op, sexprs: v, depth_cost: 0 } ))
     )
 );
 
@@ -126,11 +135,13 @@ fn main() {
     if  args.len() > 1 {
         let s = args[1..].join(" ");
         match parse_sexpr(&s) {
-            nom::IResult::Done(_, Ok(sexpr)) =>
+            nom::IResult::Done(_, Ok(ref mut root)) => {
+                root.update_depth_cost(0);
                 println!("{:?}\n{}\n{}",
-                    sexpr,
-                    sexpr.interpret(),
-                    sexpr.network_cost()),
+                         root,
+                         root.interpret(),
+                         root.network_cost());
+            }
             e => println!("error {:?} on input {:?}", e, s)
         }
     } else {
