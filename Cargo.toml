@@ -1,0 +1,7 @@
+[package]
+name = "sexpr"
+version = "0.1.0"
+authors = ["Michael.Ilyin <milyin@gmail.com>"]
+
+[dependencies]
+nom = "^3.2"
