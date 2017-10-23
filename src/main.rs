@@ -21,12 +21,19 @@ impl OpType {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+struct Cpu {
+    cpu: usize,
+    start: usize,
+    end: usize
+}
+
 #[derive(Debug)]
 struct Sexpr {
     op: OpType,
     sexprs: Vec<Sexpr>,
     depth_cost: usize,
-    cpu: Cell<Option<usize>>,
+    cpu: Cell<Option<Cpu>>
 }
 
 impl fmt::Display for Sexpr {
@@ -67,35 +74,67 @@ impl Sexpr {
         }
     }
 
-    fn find_deepest_pending_subexpr(&self, min_depth_cost: usize) -> Option<&Sexpr> {
-        if self.cpu.get().is_none() && self.op.cost() > 0 && self.depth_cost > min_depth_cost {
-            let mut best_depth_cost = self.depth_cost;
-            let mut best = Some(self);
-            for expr in &self.sexprs {
-                if let Some(e) = expr.find_deepest_pending_subexpr(best_depth_cost) {
-                    best_depth_cost = e.depth_cost;
-                    best = Some(e);
+    // Returns Some(time) if all subexprs are scheduled and it's known
+    // when their result is available
+    fn get_available_at(&self) -> Option<usize> {
+        let mut available_at : usize = 0;
+        for expr in &self.sexprs {
+            if expr.op.cost() > 0 {
+                if let Some(cpu) = expr.cpu.get() {
+                    available_at = std::cmp::max(available_at, cpu.end);
+                } else {
+                    return None
                 }
             }
-            best
-        } else {
-            None
         }
+        Some(available_at)
+    }
+
+    fn find_deepest_pending_subexpr(&self, min_depth_cost: usize, cpu_available_at: usize) -> Option<&Sexpr> {
+        if self.cpu.get().is_none() && self.op.cost() > 0 && self.depth_cost > min_depth_cost {
+            let mut best_depth_cost = self.depth_cost;
+            let mut best = None;
+            for expr in &self.sexprs {
+                if let Some(e) = expr.find_deepest_pending_subexpr(best_depth_cost, cpu_available_at) {
+                    if let Some(data_available_at) = e.get_available_at() {
+                        if cpu_available_at >= data_available_at {
+                            best_depth_cost = e.depth_cost;
+                            best = Some(e);
+                        }
+                    }
+                }
+            }
+            if best.is_some() { return best }
+            if let Some(data_available_at) = self.get_available_at() {
+                if cpu_available_at >= data_available_at {
+                    return Some(self)
+                }
+            }
+            None
+        } else { None }
     }
 
 }
 
-fn schedule_to_cpus(root: &mut Sexpr, ncpus: usize) {
+fn schedule_next_chunk(root: &Sexpr, cpus: &mut Vec<usize>) -> bool {
+    let mut ordered_cpus = cpus.iter_mut().enumerate().collect::<Vec<_>>();
+    ordered_cpus.sort_by(|a, b| a.1.cmp(&b.1) );
+    for (cpu, available_at) in ordered_cpus {
+        if let Some(ref e) = root.find_deepest_pending_subexpr(0, *available_at) {
+            let cost = e.op.cost();
+            e.cpu.set(Some(Cpu {cpu, start: *available_at, end: *available_at + cost} ));
+            println!("{} on cpu {} start {} end {} takes {}", e, cpu, *available_at, *available_at+cost, cost);
+            *available_at += cost;
+            return true
+        }
+    }
+    false
+}
+
+fn schedule_to_cpus(root: &Sexpr, ncpus: usize) {
     let mut cpus = Vec::<usize>::new();
     cpus.resize(ncpus, 0);
-    while let Some(ref e) = root.find_deepest_pending_subexpr(0) {
-        let cost = e.op.cost();
-        let (pos,_min) = cpus.iter().enumerate().
-            fold((0,std::usize::MAX),|(p,m),(i,v)| if v+cost < m {(i,v+cost)} else {(p,m)} );
-        cpus[pos] += cost;
-        e.cpu.set(Some(pos));
-        println!("{} on cpu {} takes {} s", e, pos, cost);
-    }
+    while schedule_next_chunk(root, &mut cpus) {}
     println!("cpu load {:?}\nExecution time on {} cpus is {} s", cpus, ncpus, cpus.iter().max().unwrap());
 }
 
