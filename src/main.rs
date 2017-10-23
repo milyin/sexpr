@@ -7,6 +7,7 @@ use std::env;
 use std::cell::Cell;
 use std::fmt;
 
+
 #[derive(Debug, Clone, Copy)]
 enum OpType{ Plus, Minus, Mul, Int(i64) }
 
@@ -186,24 +187,48 @@ named!(parse_sexpr<&str,Result<Sexpr, &str> >,
   )
 );
 
+fn run_sample(cpus: usize, s: &str) {
+     match parse_sexpr(&s) {
+        nom::IResult::Done(_, Ok(ref mut root)) => {
+            root.update_depth_cost(1);
+            println!("Expression {}\nResult {}\nNetwork execution time {}",
+                     root,
+                     root.interpret(),
+                     root.network_cost());
+            schedule_to_cpus(root, cpus);
+            println!();
+        }
+        e => println!("error {:?} on input {:?}", e, s)
+    }
+}
+
 fn main() {
+
+    let samples = vec! [
+        (2, "(+ (* 4 4) (* 2 (- 7 5)) 1)"),
+        (2, "10"),
+        (2, "(* 10 (- 0 1))"),
+        (2, "(- (+ 10 10) -5 0)"),
+        (2, "(+ (- (* (+ (- (* 1))))))"),
+        (2, "(* 2 (+ (- 10 9) (- 3 (* 2 1))) (+ (- 10 9) (- 3 (* 2 1))))"),
+        (3, "(* 2 (+ (- 10 9) (- 3 (* 2 1))) (+ (- 10 9) (- 3 (* 2 1))))"),
+        (2, "(+ (* 2 1) (+ 8 8) (- (+ 4 3 2 1) (* 3 3) (* 2 2)) (* 5 7))"),
+        (3, "(+ (* 2 1) (+ 8 8) (- (+ 4 3 2 1) (* 3 3) (* 2 2)) (* 5 7))"),
+        (4, "(+ (* 2 1) (+ 8 8) (- (+ 4 3 2 1) (* 3 3) (* 2 2)) (* 5 7))"),
+        (2, "(- (+ (+ 3 3) (- 3 3) (+ 3 3) (- 3 3)) (* 2 2))"),
+        (3, "(- (+ (+ 3 3) (- 3 3) (+ 3 3) (- 3 3)) (* 2 2))"),
+        (2, "(+ (- 6 1) (+ 0 1 1) (- 7 2) (* 3 4 5) (- 3 1) (+ 2) (- 0 10))"),
+    ];
+
     let  args : Vec<String> = env::args().collect();
     if  args.len() > 2 {
         let cpus = args[1].parse::<usize>().unwrap();
         let s = args[2..].join(" ");
-        match parse_sexpr(&s) {
-            nom::IResult::Done(_, Ok(ref mut root)) => {
-                root.update_depth_cost(1);
-                println!("Expression {}\nResult {}\nNetwork execution time {}",
-                         root,
-                         root.interpret(),
-                         root.network_cost());
-                schedule_to_cpus(root, cpus);
-            }
-            e => println!("error {:?} on input {:?}", e, s)
-        }
+        run_sample(cpus,&s);
     } else {
-        println!("sepxr expected");
+        for (cpus,s) in samples {
+            run_sample(cpus,s)
+        }
     }
 }
 
