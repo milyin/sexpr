@@ -4,83 +4,99 @@ extern crate nom;
 
 use std::str::FromStr;
 use std::env;
+use std::cell::Cell;
+use std::fmt;
 
 #[derive(Debug, Clone, Copy)]
-enum OpType{ Plus, Minus, Mul }
+enum OpType{ Plus, Minus, Mul, Int(i64) }
 
 impl OpType {
     fn cost(&self) -> usize {
         match self {
             &OpType::Plus => 2,
             &OpType::Minus => 3,
-            &OpType::Mul => 10
+            &OpType::Mul => 10,
+            _ => 0
         }
     }
 }
 
 #[derive(Debug)]
-enum Sexpr {
-    Op { op_type: OpType, sexprs: Vec<Sexpr>, depth_cost: usize },
-    Int(i64)
+struct Sexpr {
+    op: OpType,
+    sexprs: Vec<Sexpr>,
+    depth_cost: usize,
+    cpu: Cell<Option<usize>>,
+}
+
+impl fmt::Display for Sexpr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let list = self.sexprs.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(" ");
+        match self.op {
+            OpType::Plus => write!(f, "(+ {} )", list),
+            OpType::Minus => write!(f, "(- {} )", list),
+            OpType::Mul => write!(f, "(* {} )", list),
+            OpType::Int(n) => write!(f, "{}", n),
+        }
+    }
 }
 
 impl Sexpr {
     fn interpret(&self) -> i64 {
-        match self {
-            &Sexpr::Op { op_type: op, sexprs: ref v, .. }  => match op {
-                OpType::Plus => v.iter().fold(0, |acc, sexpr| acc + sexpr.interpret()),
-                OpType::Minus => match v.as_slice() {
-                        &[] => 0,
-                        &[ref sexpr] => -sexpr.interpret(),
-                        &[ref sexpr, ref rest..] => rest.iter().fold(sexpr.interpret(), |acc, sexpr| acc - sexpr.interpret())
-                    },
-                OpType::Mul => v.iter().fold(1, |acc, sexpr| acc * sexpr.interpret()),
+        match self.op {
+            OpType::Plus => self.sexprs.iter().fold(0, |acc, sexpr| acc + sexpr.interpret()),
+            OpType::Minus => match self.sexprs.as_slice() {
+                &[] => 0,
+                &[ref sexpr] => -sexpr.interpret(),
+                &[ref sexpr, ref rest..] => rest.iter().fold(sexpr.interpret(), |acc, sexpr| acc - sexpr.interpret())
             },
-            &Sexpr::Int(n) => n
-        }
-    }
-
-    fn exprs(&self) -> &[Sexpr] {
-        match self {
-            &Sexpr::Op  { sexprs : ref v, .. } => v.as_slice(),
-            &Sexpr::Int(_) => &[]
-        }
-    }
-
-    fn op_cost(&self) -> usize {
-        match self {
-            &Sexpr::Op { op_type: op, .. } => op.cost(),
-            &Sexpr::Int(_) => 0
+            OpType::Mul => self.sexprs.iter().fold(1, |acc, sexpr| acc * sexpr.interpret()),
+            OpType::Int(n) => n
         }
     }
 
     fn network_cost(&self) -> usize {
-        return self.op_cost() + self.exprs().iter()
+        return self.op.cost() + self.sexprs.iter()
             .fold(0, |acc, sexpr| std::cmp::max(acc,sexpr.network_cost()))
     }
 
-    fn is_leaf_op(&self) -> bool {
-        self.exprs().iter().fold(true, |acc, sexpr| acc && sexpr.exprs().is_empty())
-    }
-
-    fn cpu_cost(&self) -> usize {
-        return self.op_cost() + self.exprs().iter()
-            .fold(0, |acc, sexpr| acc+sexpr.cpu_cost())
-    }
-
     fn update_depth_cost(&mut self, cost: usize) {
-        if let &mut Sexpr::Op { op_type: op, sexprs: ref mut e, depth_cost: ref mut dc }  = self {
-            *dc = cost;
-            for sexpr in e {
-                sexpr.update_depth_cost(cost + op.cost() )
-            }
+        self.depth_cost = cost;
+        for sexpr in &mut self.sexprs {
+            sexpr.update_depth_cost(cost + self.op.cost() )
         }
     }
+
+    fn find_deepest_pending_subexpr(&self, min_depth_cost: usize) -> Option<&Sexpr> {
+        if self.cpu.get().is_none() && self.op.cost() > 0 && self.depth_cost > min_depth_cost {
+            let mut best_depth_cost = self.depth_cost;
+            let mut best = Some(self);
+            for expr in &self.sexprs {
+                if let Some(e) = expr.find_deepest_pending_subexpr(best_depth_cost) {
+                    best_depth_cost = e.depth_cost;
+                    best = Some(e);
+                }
+            }
+            best
+        } else {
+            None
+        }
+    }
+
 }
 
-//fn interpret_cpu(sexpr: &Sexpr, ncpus: usize) -> (i64, usize) {
-//    let cpus = Vec::<Sexpr>::new();
-//}
+fn schedule_to_cpus(root: &mut Sexpr, ncpus: usize) {
+    let mut cpus = Vec::<usize>::new();
+    cpus.resize(ncpus, 0);
+    while let Some(ref e) = root.find_deepest_pending_subexpr(0) {
+        let (pos,_min) = cpus.iter().enumerate().
+            fold((0,std::usize::MAX), |(p,m),(i,v)| if v < &m {(i,*v)} else {(p,m)} );
+        cpus[pos] += e.op.cost();
+        e.cpu.set(Some(pos));
+        println!("{} on cpu {} takes {} s", e, pos, e.op.cost());
+    }
+    println!("cpu load {:?}\nExecution time on {} cpus is {} s", cpus, ncpus, cpus.iter().max().unwrap());
+}
 
 named!(open_bracket<&str,&str>,
     ws!(tag_s!("("))
@@ -119,28 +135,30 @@ named!(sexpr_brackets<&str, Result<Sexpr, &str> >,
         op: operation >>
         exprs: fold_many1!(parse_sexpr, Ok(Vec::new()), collect_sexprs) >>
         close_bracket >>
-        (exprs.map(|v| Sexpr::Op { op_type: op, sexprs: v, depth_cost: 0 } ))
+        (exprs.map(|v| Sexpr { op: op, sexprs: v, depth_cost: 0, cpu: Cell::new(None) } ))
     )
 );
 
 named!(parse_sexpr<&str,Result<Sexpr, &str> >,
   alt!(
     sexpr_brackets |
-    map!(integer, |v| v.map(Sexpr::Int))
+    map!(integer, |v| v.map( |n| Sexpr { op: OpType::Int(n), sexprs: Vec::new() , depth_cost: 0, cpu: Cell::new(None) } ))
   )
 );
 
 fn main() {
     let  args : Vec<String> = env::args().collect();
-    if  args.len() > 1 {
-        let s = args[1..].join(" ");
+    if  args.len() > 2 {
+        let cpus = args[1].parse::<usize>().unwrap();
+        let s = args[2..].join(" ");
         match parse_sexpr(&s) {
             nom::IResult::Done(_, Ok(ref mut root)) => {
-                root.update_depth_cost(0);
-                println!("{:?}\n{}\n{}",
+                root.update_depth_cost(1);
+                println!("Expression {}\nResult {}\nNetwork execution time {}",
                          root,
                          root.interpret(),
                          root.network_cost());
+                schedule_to_cpus(root, cpus);
             }
             e => println!("error {:?} on input {:?}", e, s)
         }
