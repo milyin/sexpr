@@ -89,11 +89,12 @@ fn schedule_to_cpus(root: &mut Sexpr, ncpus: usize) {
     let mut cpus = Vec::<usize>::new();
     cpus.resize(ncpus, 0);
     while let Some(ref e) = root.find_deepest_pending_subexpr(0) {
+        let cost = e.op.cost();
         let (pos,_min) = cpus.iter().enumerate().
-            fold((0,std::usize::MAX), |(p,m),(i,v)| if v < &m {(i,*v)} else {(p,m)} );
-        cpus[pos] += e.op.cost();
+            fold((0,std::usize::MAX),|(p,m),(i,v)| if v+cost < m {(i,v+cost)} else {(p,m)} );
+        cpus[pos] += cost;
         e.cpu.set(Some(pos));
-        println!("{} on cpu {} takes {} s", e, pos, e.op.cost());
+        println!("{} on cpu {} takes {} s", e, pos, cost);
     }
     println!("cpu load {:?}\nExecution time on {} cpus is {} s", cpus, ncpus, cpus.iter().max().unwrap());
 }
