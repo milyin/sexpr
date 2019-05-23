@@ -5,7 +5,7 @@
 
 Дана программа в виде упрощённого S-expression (https://en.wikipedia.org/wiki/S-expression), например:
 
-sample_1() -> <<"(+ (* 4 4) (* 2 (- 7 5)) 1)">>.
+    sample_1() -> <<"(+ (* 4 4) (* 2 (- 7 5)) 1)">>.
 
 где первый элемент каждого списка — это операция (всего их три вида):
 
@@ -17,21 +17,14 @@ sample_1() -> <<"(+ (* 4 4) (* 2 (- 7 5)) 1)">>.
 
 Ещё примеры:
 
-sample_2() -> <<"10">>.
-
-sample_3() -> <<"(* 10 (- 0 1))">>.
-
-sample_4() -> <<"(- (+ 10 10) -5 0)">>.
-
-sample_5() -> <<"(+ (- (* (+ (- (* 1))))))">>.
-
-sample_6() -> <<"(* 2 (+ (- 10 9) (- 3 (* 2 1))) (+ (- 10 9) (- 3 (* 2 1))))">>.
-
-sample_7() -> <<"(+ (* 2 1) (+ 8 8) (- (+ 4 3 2 1) (* 3 3) (* 2 2)) (* 5 7))">>.
-
-sample_8() -> <<"(- (+ (+ 3 3) (- 3 3) (+ 3 3) (- 3 3)) (* 2 2))">>.
-
-sample_9() -> <<"(+ (- 6 1) (+ 0 1 1) (- 7 2) (* 3 4 5) (- 3 1) (+ 2) (- 0 10))">>.
+    sample_2() -> <<"10">>.
+    sample_3() -> <<"(* 10 (- 0 1))">>.
+    sample_4() -> <<"(- (+ 10 10) -5 0)">>.
+    sample_5() -> <<"(+ (- (* (+ (- (* 1))))))">>.
+    sample_6() -> <<"(* 2 (+ (- 10 9) (- 3 (* 2 1))) (+ (- 10 9) (- 3 (* 2 1))))">>.
+    sample_7() -> <<"(+ (* 2 1) (+ 8 8) (- (+ 4 3 2 1) (* 3 3) (* 2 2)) (* 5 7))">>.
+    sample_8() -> <<"(- (+ (+ 3 3) (- 3 3) (+ 3 3) (- 3 3)) (* 2 2))">>.
+    sample_9() -> <<"(+ (- 6 1) (+ 0 1 1) (- 7 2) (* 3 4 5) (- 3 1) (+ 2) (- 0 10))">>.
 
 
 Задача 1
@@ -40,23 +33,15 @@ sample_9() -> <<"(+ (- 6 1) (+ 0 1 1) (- 7 2) (* 3 4 5) (- 3 1) (+ 2) (- 0 10))"
 
 Например:
 
-interpret(sample_1()). --> 21
-
-interpret(sample_2()). --> 10
-
-interpret(sample_3()). --> -10
-
-interpret(sample_4()). --> 25
-
-interpret(sample_5()). --> 1
-
-interpret(sample_6()). --> 8
-
-interpret(sample_7()). --> 50
-
-interpret(sample_8()). --> 8
-
-interpret(sample_9()). --> 66
+    interpret(sample_1()). --> 21
+    interpret(sample_2()). --> 10
+    interpret(sample_3()). --> -10
+    interpret(sample_4()). --> 25
+    interpret(sample_5()). --> 1
+    interpret(sample_6()). --> 8
+    interpret(sample_7()). --> 50
+    interpret(sample_8()). --> 8
+    interpret(sample_9()). --> 66
 
 
 Задача 2
@@ -74,23 +59,15 @@ interpret(sample_9()). --> 66
 
 Например:
 
-interpret_network(sample_1()). --> 21 (delay 15 s)
-
-interpret_network(sample_2()). --> 10 (delay 0 s)
-
-interpret_network(sample_3()). --> -10 (delay 13 s)
-
-interpret_network(sample_4()). --> 25 (delay 5 s)
-
-interpret_network(sample_5()). --> 1 (delay 30 s)
-
-interpret_network(sample_6()). --> 8 (delay 25 s)
-
-interpret_network(sample_7()). --> 50 (delay 15 s)
-
-interpret_network(sample_8()). --> 8 (delay 13 s)
-
-interpret_network(sample_9()). --> 66 (delay 12 s)
+    interpret_network(sample_1()). --> 21 (delay 15 s)
+    interpret_network(sample_2()). --> 10 (delay 0 s)
+    interpret_network(sample_3()). --> -10 (delay 13 s)
+    interpret_network(sample_4()). --> 25 (delay 5 s)
+    interpret_network(sample_5()). --> 1 (delay 30 s)
+    interpret_network(sample_6()). --> 8 (delay 25 s)
+    interpret_network(sample_7()). --> 50 (delay 15 s)
+    interpret_network(sample_8()). --> 8 (delay 13 s)
+    interpret_network(sample_9()). --> 66 (delay 12 s)
 
 
 Задача 3
@@ -109,31 +86,19 @@ interpret_network(sample_9()). --> 66 (delay 12 s)
 
 Например:
 
-interpret_cpu(sample_1(), 2). --> 21 (delay 15 s)
-
-interpret_cpu(sample_2(), 2). --> 10 (delay 0 s)
-
-interpret_cpu(sample_3(), 2). --> -10 (delay 13 s)
-
-interpret_cpu(sample_4(), 2). --> 25 (delay 5 s)
-
-interpret_cpu(sample_5(), 2). --> 1 (delay 30 s)
-
-interpret_cpu(sample_6(), 2). --> 8 (delay 28 s)
-
-interpret_cpu(sample_6(), 3). --> 8 (delay 25 s)
-
-interpret_cpu(sample_7(), 2). --> 50 (delay 26 s)
-
-interpret_cpu(sample_7(), 3). --> 50 (delay 22 s)
-
-interpret_cpu(sample_7(), 4). --> 50 (delay 15 s)
-
-interpret_cpu(sample_8(), 2). --> 8 (delay 15 s)
-
-interpret_cpu(sample_8(), 3). --> 8 (delay 13 s)
-
-interpret_cpu(sample_9(), 2). --> 66 (delay 15 s)
+    interpret_cpu(sample_1(), 2). --> 21 (delay 15 s)
+    interpret_cpu(sample_2(), 2). --> 10 (delay 0 s)
+    interpret_cpu(sample_3(), 2). --> -10 (delay 13 s)
+    interpret_cpu(sample_4(), 2). --> 25 (delay 5 s)
+    interpret_cpu(sample_5(), 2). --> 1 (delay 30 s)
+    interpret_cpu(sample_6(), 2). --> 8 (delay 28 s)
+    interpret_cpu(sample_6(), 3). --> 8 (delay 25 s)
+    interpret_cpu(sample_7(), 2). --> 50 (delay 26 s)
+    interpret_cpu(sample_7(), 3). --> 50 (delay 22 s)
+    interpret_cpu(sample_7(), 4). --> 50 (delay 15 s)
+    interpret_cpu(sample_8(), 2). --> 8 (delay 15 s)
+    interpret_cpu(sample_8(), 3). --> 8 (delay 13 s)
+    interpret_cpu(sample_9(), 2). --> 66 (delay 15 s)
 
 
 Логи работы на приведенных примерах:
